@@ -137,12 +137,27 @@ Return ONLY valid JSON, exactly this shape:
     from google import genai
 
     client = genai.Client(api_key=api_key)
-    response = client.models.generate_content(
-        model="gemini-2.0-flash",
-        contents=prompt,
-        config={"response_mime_type": "application/json"},
-    )
-    raw = response.text.strip()
+    # try the newest models first, fall back to older ones automatically
+    # (Google retires old model names from time to time)
+    last_error = None
+    raw = None
+    for model in ("gemini-3.6-flash", "gemini-2.5-flash", "gemini-2.0-flash"):
+        try:
+            response = client.models.generate_content(
+                model=model,
+                contents=prompt,
+                config={"response_mime_type": "application/json"},
+            )
+            raw = response.text.strip()
+            if raw:
+                break
+        except Exception as e:
+            last_error = e
+            continue
+    if not raw:
+        raise last_error or RuntimeError(
+            "No Gemini model was available. Please try again in a minute."
+        )
     # tolerate accidental markdown fences
     raw = re.sub(r"^```(json)?\s*|\s*```$", "", raw)
     data = json.loads(raw)
