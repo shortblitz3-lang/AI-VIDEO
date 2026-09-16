@@ -44,6 +44,12 @@ with st.sidebar:
         "[Google AI Studio](https://aistudio.google.com/apikey)"
     )
     api_key = st.text_input("Paste your free API key here", type="password")
+    if api_key and not api_key.strip().startswith("AIza"):
+        st.warning(
+            "This doesn't look like a Gemini key — it must start with 'AIza'. "
+            "Please re-copy it from https://aistudio.google.com/apikey and paste again "
+            "(only the key, no extra letters or spaces)."
+        )
 
     language = st.selectbox("Narration language", list(P.LANGUAGES))
     lang_cfg = P.LANGUAGES[language]
@@ -200,11 +206,28 @@ if generate_btn:
             st.session_state.video = None
         except Exception as e:
             status.update(label="❌ Script generation failed", state="error")
-            st.error(
-                f"Could not generate the script: {e}\n\n"
-                "Check that your Gemini API key is correct, and try again in a minute "
-                "(free keys have a per-minute limit)."
-            )
+            msg = str(e)
+            low = msg.lower()
+            if "api key" in low or "401" in msg or "403" in msg or "permission" in low or "invalid" in low:
+                reason = (
+                    "🔑 **The API key seems wrong.** Please re-copy it from "
+                    "https://aistudio.google.com/apikey (it starts with 'AIza') and "
+                    "paste it again in the sidebar — only the key, no spaces. "
+                    "Make sure you are signed in to the same Google account you used to create it."
+                )
+            elif "429" in msg or "quota" in low or "rate" in low or "resourceexhausted" in low:
+                reason = (
+                    "⏳ **Free limit reached.** Wait 1 minute and press the button again — "
+                    "free keys have a per-minute limit."
+                )
+            elif "timeout" in low or "connection" in low or "network" in low:
+                reason = "🌐 **Network problem.** Check your internet and try again in a minute."
+            else:
+                reason = (
+                    "Check that your Gemini API key is correct, and try again in a minute "
+                    "(free keys have a per-minute limit)."
+                )
+            st.error(f"Could not generate the script.\n\n{reason}\n\n---\nTechnical detail: {msg[:500]}")
 
 # ----------------------------------------------------------------- editor
 script = st.session_state.script
